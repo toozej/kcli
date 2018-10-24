@@ -17,7 +17,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DOMAIN = "kubevirt.io"
-VERSION = 'v1alpha2'
+VERSION = 'v1alpha3'
 MULTUSDOMAIN = 'k8s.cni.cncf.io'
 MULTUSVERSION = 'v1'
 REGISTRYDISKS = ['kubevirt/alpine-registry-disk-demo', 'kubevirt/cirros-registry-disk-demo',
@@ -261,7 +261,6 @@ class Kubevirt(object):
         sizes = []
         for index, disk in enumerate(disks):
             existingpvc = False
-            diskname = "disk%s" % index
             volname = "%s-vol%s" % (name, index)
             letter = chr(index + ord('a'))
             if disk is None:
@@ -292,7 +291,7 @@ class Kubevirt(object):
                     myvolume['persistentVolumeClaim'] = {'claimName': volname}
             if index > 0 or template is None:
                 myvolume['persistentVolumeClaim'] = {'claimName': volname}
-            newdisk = {'volumeName': volname, 'disk': {'dev': 'vd%s' % letter, 'bus': diskinterface}, 'name': diskname}
+            newdisk = {'disk': {'dev': 'vd%s' % letter, 'bus': diskinterface}, 'name': volname}
             vm['spec']['template']['spec']['domain']['devices']['disks'].append(newdisk)
             vm['spec']['template']['spec']['volumes'].append(myvolume)
             if index == 0 and template in REGISTRYDISKS:
@@ -906,7 +905,6 @@ class Kubevirt(object):
                         if disk['name'] != 'cloudinitdisk']
         index = len(currentdisks)
         volname = '%s-vol%d' % (name, index)
-        diskname = 'disk%d' % index
         self.create_disk(volname, size=size, pool=pool, thin=thin, template=template)
         bound = self.pvc_bound(volname, namespace)
         if not bound:
@@ -916,7 +914,7 @@ class Kubevirt(object):
             reason = prepare['reason']
             return {'result': 'failure', 'reason': reason}
         myvolume = {'name': volname, 'persistentVolumeClaim': {'claimName': volname}}
-        newdisk = {'volumeName': volname, 'name': diskname}
+        newdisk = {'name': volname}
         vm['spec'][t]['spec']['domain']['devices']['disks'].append(newdisk)
         vm['spec'][t]['spec']['volumes'].append(myvolume)
         crds.replace_namespaced_custom_object(DOMAIN, VERSION, namespace, "virtualmachines", name, vm)
@@ -944,8 +942,8 @@ class Kubevirt(object):
             common.pprint("Disk %s not found" % diskname, color='red')
             return {'result': 'failure', 'reason': "disk %s not found in VM" % diskname}
         diskindex = diskindex[0]
-        volname = vm['spec'][t]['spec']['domain']['devices']['disks'][diskindex]['volumeName']
-        volindex = [i for i, vol in enumerate(vm['spec'][t]['spec']['volumes']) if vol['name'] == volname]
+        volname = vm['spec'][t]['spec']['domain']['devices']['disks'][diskindex]['name']
+        volindex = [i for i, vol in enumerate(vm['spec'][t]['spec']['volumes']) if vol['name'] == diskname]
         if volindex:
             volindex = volindex[0]
             del vm['spec'][t]['spec']['volumes'][volindex]
